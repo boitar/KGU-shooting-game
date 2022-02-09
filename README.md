@@ -20,7 +20,8 @@
 
 それに、第１ステージに、単位を無視して、１００体の敵を倒すと、担当の塚田先生がEXbossとして登場する。
 
-![img](file:///C:/Users/boita/AppData/Local/Temp/msohtmlclip1/01/clip_image002.jpg)![img](file:///C:/Users/boita/AppData/Local/Temp/msohtmlclip1/01/clip_image004.jpg)
+![](https://s2.loli.net/2022/02/09/eyh5Pr8lJcELFoQ.png)
+![](https://s2.loli.net/2022/02/09/FzWPGAnwbE1e635.png)
 
 操作方法はゲーム内に記入した。
 
@@ -32,4 +33,4 @@
 
 ３．東方風だから、Boss戦に、BossがいまのHPに対応して、弾幕も変える。これは本組ゲームが難しい原因である。そして、経験者のために、もっと難しいSPELUNKER　modeも用意した、自機が1体だけので、お楽しみに。
 
-![工程管理表](C:\Users\boita\Desktop\简历\我的\弹幕游戏\弹幕游戏demo\工程管理表.JPG)
+![](https://s2.loli.net/2022/02/09/9SCEKPacQFuwW42.jpg)
