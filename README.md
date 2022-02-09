@@ -11,7 +11,7 @@
 218K6060　　張　*
 
 # ＜ゲームの説明＞
-**Need HSP3,you can download at[](https://hsp.tv/idman/download.html)**
+**Need HSP3,you can download at[HSP3](https://hsp.tv/idman/download.html)**
 
 東方風のシューティングゲームを作った。その上に、KGUの要素も入れた。
 
