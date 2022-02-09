@@ -1,0 +1,1317 @@
+	#define PI 3.141592658979
+	randomize			; 乱数パターンを不定に
+	width ,,250,0
+
+	buffer 1			; ウィンドウ1をバッファ画面として用意
+	picload "shot_chrs.bmp"		; 使用する画像を読み込む
+	buffer 3
+	picload "kgu.bmp" 
+	buffer 4
+	picload "slow_dot_2.bmp"
+	buffer 5
+	picload "nc120940.bmp"
+	buffer 6
+	picload "残機.bmp"
+	buffer 7
+	picload "omega2.bmp"
+	buffer 8
+	picload "単位.bmp"
+	buffer 9
+	picload "chara1.bmp"
+	buffer 10 
+	picload "staff5.bmp"
+	buffer 11
+	picload "KGU_dead.bmp"
+	buffer 12
+	picload "TKD_dead.bmp"
+	wxs = 700
+	wys = 700
+	screen 0, wxs, wys		; メイン画面(ウィンドウ0)を500×700画素で出す
+	title "High.Speed.Punisher ヨ -χ-"	; タイトルバーにタイトル表示
+
+
+	mmload "shot.wav", 0	; 効果音を読み込む
+	mmload "hit.wav", 1		;
+	mmload "bomb.wav", 2	;
+	mmload "nc899.wav", 4
+	mmload "se_maoudamashii_explosion06.wav",5
+	mmload "se_maoudamashii_explosion01.wav",6
+
+	DP = 0
+	die = 0
+	sp = 0
+	Bflag = 0; ボスフラグ
+	Tflag = 0;ボスフラグ2
+
+	picload "ntitle2.bmp", 1		; タイトル画面
+	gosub *how					; エンターキー待ち
+
+*howto
+	repeat
+	stg = DP
+	sc = 0
+	Bflag = 0
+	ecn = 0
+	color 0,0,155
+	boxf
+	color 255,255,255
+	pos 0,0
+	font "",20
+	mes {"Welcome to High.Speed.Punisher ヨ -χ-
+
+	操作方法
+
+	1.十字キーで移動出来ます。
+	2.コントロールキーで低速移動が出来ます。
+	3.スペースキーで弾の発射しますが、
+	　連射中に右上右下への移動が出来ません。（バグ）
+	4.負けてもエンターキーでコンテニュー出来ます。
+	5.escキーでポーズ出来ます。（エンターで復帰）
+
+	目的
+
+	1.通常面では単位を集めます。
+	2.２４単位取得で次のステージへ進みます。
+	3.最後のボスを倒すのが最終目的です。
+	"}
+	stick ky
+	if die = 0 {
+		pos 0,370
+		mes "------select mode------"
+
+		if ky = 2 : sp = 0 : mmplay 6
+		if ky = 8 : sp = 1 : mmplay 6
+
+		pos 55,410
+		mes "Normal mode | 通常のゲームモードです。"
+
+		pos 55,460
+		mes "SPELUNKER | 残機が１固定。また、コンティニュー時のステージセーブ無し。"
+
+		if sp = 0 {
+			pos 30,410
+			mes "⇒"
+			sphp = 4
+		}
+		else {
+			pos 30,460
+			mes "⇒"
+			sphp = 1
+		}
+	}
+	else {
+		pos 0,370
+		mes "------game mode-------"
+		pos 55,430
+		if sp = 0 {
+			mes "Normal mode"
+		}
+		else {
+			mes "SPELUNKER"
+			stg = 0
+		}
+	}
+			
+			
+
+	pos 0,500
+	color 255,255,255
+	mes "エンターキーで開始します。"
+
+	if ky = 32 : break
+	
+	wait 5
+	loop
+	
+	
+*start
+	stg + 		; 1ステージ進行
+	frame == 0
+	if(stg >= 3) : Bflag = 1
+	cls 4
+	color 255, 255, 255
+	font "MS ゴシック体", 32
+	if (stg == 4) : pos 250,300 : mes {"塚田先生の
+	パーフェクト情報教室"}
+	if (stg == 3) : pos 300,300 : mes "vs K.G.U."
+	if (stg == 2) : pos 250,300 : mes "フォーサイト上層"
+	if (stg == 1) : pos 250,300 : mes "フォーサイト中層"
+
+	fnm = "BGM" + strf("%02d",stg) + ".mp3"	; BGMファイル名
+	mmload fnm, 3				; BGMを読み込み、
+	mmplay 3					; 鳴らす
+
+	if stg = 3 : await 15000
+
+	wait 100
+		
+	buffer 2				; 背景とスクロールの設定
+	if(Bflag == 0){
+		fnm = "nback" + strf("%02d",stg\3) + ".jpg"	; 背景ファイル名
+		picload fnm						; 背景読み込み
+	}
+	else{
+		picload "seiun19201080.jpg"
+	}
+	ssp = ginfo_winy - wys			; スクロール速度
+	px = 228
+	py = 636				; 自機の初期座標
+	hp = sphp
+
+	tmx = 100				; 自機弾の数
+ 	dim tx, tmx :dim ty, tmx		; 自機弾の座標の配列変数
+	dim tf,tmx			; 自機弾フラグの配列変数
+
+	nrm = 3*stg			; 敵ノルマ
+	emx = 5 * stg			; 敵の数
+	dim ex,emx :dim ey,emx		; 敵の座標の配列変数
+	dim dx,emx :dim dy,emx		; 敵の移動方向の配列変数
+	dim ehp,emx			;
+	esp = 6				; 敵の移動速度
+
+	foreach ex :c = cnt		; 敵の初期配置を設定
+		gosub *enmset		;
+	loop
+
+	etmx = 8				; 敵弾の数
+	dim etx, etmx :dim ety, etmx	; 敵弾の座標の配列変数
+	dim tdx, etmx :dim tdy, etmx	; 敵弾の移動方向の配列変数
+	dim etf, etmx					; 敵弾フラグの配列変数
+
+	kgunrm = 1		; ボスノルマ
+	kgumx = 1		;ボスの数
+	dim kgux,kgumx :dim kguy,kgumx	;ボスの座標の配置変数
+	dim kgudx,kgumx :dim kgudy,kgumx	;ボスの移動方向の配置変数
+	dim kguhp,kgumx	;ボスのHP
+	kguhp = 1000
+	kgux = 139.0
+	kguy = 100.0
+	
+	//ボス弾幕情報初期化
+	maxbullet = 2500
+	dim b ,maxbullet
+	dim big ,maxbullet //大玉
+	dimtype b_x ,vartype("double"),maxbullet
+	dimtype b_y ,vartype("double"),maxbullet
+	dimtype b_vx ,vartype("double"),maxbullet
+	dimtype b_vy ,vartype("double"),maxbullet
+	dimtype big_x ,vartype("double"),maxbullet////大玉
+	dimtype big_y ,vartype("double"),maxbullet
+	dimtype big_vx ,vartype("double"),maxbullet
+	dimtype big_vy ,vartype("double"),maxbullet
+	
+	//交差弾用弾幕情報初期化
+	dim b_type ,maxbullet
+	dim b_time ,maxbullet
+	dimtype b_ang ,vartype("double"),maxbullet
+
+	//単位取得
+	tne = 0			;所持単位
+	tnenrm = 24		;必要単位数
+	tnemx = 3		;単位の画面表示限界数
+	dim tnex,tnemx : dim tney,tnemx		;単位のｘｙ座標
+	dim tnef,tnemx		;単位フラグ
+
+	frame = 0
+	gsel 0				; メイン画面選択
+*main
+	redraw 0			; 画面に反映しない(仮想画面は書き換わる)
+
+	gmode 1					; ノーマルコピーモード
+	if (stg != 2){
+		scr = (scr + ssp) \ wys			; コピー元座標を算出
+		pos 0, scr
+		gcopy 2, 0, 0, wxs, wys-scr	; 背景画像をコピー
+		if scr!0 {
+			pos 0, 0
+			gcopy 2, 0, wys-scr, wxs, scr
+		}
+	}
+	else {
+		pos 0,0
+		gcopy 2,0,0,500,700
+	}
+	gmode 2					; 透明色コピーモード
+
+	if hp > 0 {
+		stick ky, %1111111				; キー入力値取得
+		if (ky&128) : gosub *pause
+		if (ky&64){
+			if ky&1 :px = limit(px-3, 8, 460)		; 自機座標の加減算 低速
+			if ky&4 :px = limit(px+3, 8, 460)		;
+			if ky&2 :py = limit(py-3, 8, 660)		;
+			if ky&8 :py = limit(py+3, 8, 660)		;
+		}else{
+			if ky&1 :px = limit(px-10, 8, 460)		; 自機座標の加減算
+			if ky&4 :px = limit(px+10, 8, 460)		;
+			if ky&2 :py = limit(py-10, 8, 660)		;
+			if ky&8 :py = limit(py+10, 8, 660)		;
+		}
+		pos px,py		 		; (px,py)座標に位置指定
+		gcopy 1, 0, 0, 32, 32; ウィンドウ1から自機の部分をコピー
+		if(ky&64){
+		pos px + 8,py + 8
+		gcopy 4
+	}
+	}
+
+	foreach tf :c = cnt
+		if tf(c) = 0 {
+			if(frame\2 == 0){
+				if ky&16 { 
+					mmplay 0			; 自機弾の発射セット
+					tx(c) = px + 8
+					ty(c) = py - 16
+					tf(c) = 1
+					ky = 0
+				}
+			}
+		} 
+		else {
+			ty(c) -= 16
+			if ty(c) < 0 {
+				tf(c) = 0		; 自機弾を進める
+			}
+		}
+
+		if tf(c) = 1 {
+			if (stg == 1){
+				gosub *hitchk			; 発射中の自機弾チェック
+			}
+			if (stg == 2){
+				gosub *hitchk2
+			}
+			if (stg >= 3){
+				gosub *hitchk3
+			}
+		}
+	loop
+
+	if stg == 1 {//////////////////////////////////////////////////////////////////////
+		if (emx>ecn) {				; 限界数以下なら敵を発生
+			c = rnd(emx)
+			if ehp(c) < 1 :gosub *enmset
+		}
+	
+		foreach ehp :c = cnt
+			if ehp(c) > 0 {
+				if r = 0 :gosub *enmvec					; 敵の動きを乱数で決定
+				x = ex(c)
+				ex(c) += dx(c)
+				if (ex(c)<8)|(wxs-210<ex(c)) :ex(c)=x :dx(c)=-dx(c)	; 左右の壁で反転
+				y = ey(c)
+				ey(c) += dy(c)
+				if (ey(c)<-24)|(wys-8<ey(c)) :gosub *enmpoi		; 画面下に消えたら再配置
+				r = rnd(10)
+
+				pos ex(c), ey(c)		; (ex(c),ey(c))座標に位置指定
+				gcopy 1, 32, 0, 32, 32	; ウィンドウ1から敵の画像部分をコピー
+			}
+		loop
+
+		r = rnd(etmx)
+		e = rnd(emx)					; 敵弾の発射セット
+		if (etf(r)=0)&(ehp(e)>0) {
+			etx(r) = ex(e) + 8
+			ety(r) = ey(e) + 16
+			tdx(r) = (rnd(5)-2)*4
+			tdy(r) = (rnd(2)+1)*8
+			etf(r) = 1
+		}
+
+		foreach etf :c = cnt
+			if etf(c) = 1 {						; 敵弾と自機の当たり判定
+				if (abs((px+8)-etx(c))<6)&(abs((py+8)-ety(c))<6) {
+					mmplay 4
+					etf(c) = 0
+					hp-
+					gosub *bom_p	; 爆発をセット
+				}
+
+				pos etx(c), ety(c)
+				gcopy 1, 80, 0, 16, 16			; 敵弾の表示
+				etx(c) += tdx(c)
+				ety(c) += tdy(c)				; 移動の処理
+				if (etx(c)<0)|(etx(c)>484)|(ety(c)>684) :etf(c) = 0
+			}
+		loop
+
+		if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+
+
+			
+		foreach tnef :c = cnt
+			if tnef(c) = 0{
+				if (bmc == 1)&(rnd(100)>=81){
+					tnex(c) = bmx
+					tney(c) = bmy
+					tnef(c) = 1
+				}
+			}
+			else {
+				tney(c) += 5
+				if tney(c) > 700 {
+					tnef(c) = 0  ; 単位を進める
+					tne = tne -1
+				}
+				gosub *tnechk			; 発射中の単位チェック
+			}
+		loop
+		
+	} ; stg1 終了///////////////////////////////////////////////////////
+	if stg == 2{
+	color 0,0,0
+	if (kgunrm>ecn)&(kguemx>ecn) {				; ノルマ数以下ならボスを発生
+			c = rnd(emx)
+			if kguhp < 1 :gosub *enmset2		;
+		}
+
+			//弾幕設定「うどんげ」
+		if(frame\15== 0){
+			g = 20
+			t1 = 0.001*rnd(3142)
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 230.0
+					b_y(number) = 100.0
+
+					b_vx(number)= cos(t) * 7.0
+					b_vy(number)= sin(t) * 7.0
+			}
+			loop
+	}
+
+		//弾幕設定
+		if(frame\60 == 0){
+			p1 = atan ( py-200.0 , px-50.0)
+				p = PI * 2 * cnt +p1
+				gosub *search2
+				if(number != -1){
+					//弾の発射
+					big(number) = 1
+					big_x(number) = 50.0
+					big_y(number) = 200.0
+
+					big_vx(number)= cos(p)*7.0
+					big_vy(number)= sin(p)*7.0
+				}
+			}
+
+		repeat maxbullet
+		if( b(cnt) == 1 ){
+			if(abs((px+8) - (b_x(cnt) +10))<20) & (abs((py+8) - (b_y(cnt) +10))<20) {
+				mmplay 4
+				b(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos b_x(cnt),b_y(cnt)
+			gmode 2
+			gcopy 1, 32, 0, 32, 32 ;弾幕の描画
+
+			b_x(cnt) = b_x(cnt) + b_vx(cnt)
+			b_y(cnt) = b_y(cnt) + b_vy(cnt);移動の処理
+
+			if( b_x(cnt)<-50 || b_y(cnt)<-50 || b_x(cnt)>550 || b_y(cnt)> 750 ) : b(cnt) =0
+		}
+	loop
+
+		repeat maxbullet///////////////////大玉
+		if( big(cnt) == 1 ){
+			if(abs((px+8) - (big_x(cnt) - 10))<20) & (abs((py+8) - (big_y(cnt) - 5))<20) {
+				mmplay 4
+				big(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos big_x(cnt) - 50,big_y(cnt) - 50
+			color 0,0,0
+			gmode 4,100,100,200
+			gcopy 5, 0, 0, 100, 100 ;弾幕の描画
+
+			big_x(cnt) = big_x(cnt) + big_vx(cnt)
+			big_y(cnt) = big_y(cnt) + big_vy(cnt);移動の処理
+
+			if( big_x(cnt)<-50 || big_y(cnt)<-50 || big_x(cnt)>550 || big_y(cnt)> 750 ) : big(cnt) =0
+
+		}
+		loop
+
+	//敵の動き
+	gorira = gorira + 1
+	if(gorira == 51):gorira = 1
+	if(gorira == 50):gozira = gozira + 1
+	if(gozira == 2):gozira = 0
+		
+	if (gozira == 0){
+		kguy = kguy - 1
+	}
+	else{
+		kguy = kguy + 1
+	}			
+	pos kgux - 139, kguy -100		; (ex(c),ey(c))座標に位置指定
+	gmode 2
+	gcopy 7,0,0,500,350	; 
+
+	foreach tnef :c = cnt
+		if tnef(c) = 0{
+			if (kguhp\7 == 0 )&(rnd(100)>=91){
+				tnex(c) = rnd(300) + 100
+				tney(c) = 100
+				tnef(c) = 1
+			}
+		}
+		else {
+			tney(c) += 5
+			if tney(c) > 700 {
+				tnef(c) = 0  ; 単位を進める
+				tne = tne -1
+			}
+			gosub *tnechk			; 発射中の単位チェック
+		}
+	loop
+
+			if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+		
+		
+	}
+	if stg == 3 { ; stg3 ボス面////////////////////////////////////////////////////////////////////////
+	color 0,0,0
+	if (kgunrm>ecn)&(kguemx>ecn) {				; ノルマ数以下ならボスを発生
+			c = rnd(emx)
+			if kguhp < 1 :gosub *enmset2		;
+		}
+
+	color 255,255,255
+	pos 0,0
+	font "HGP明朝B", 25
+	mes "K.G.U. 残HP"
+	color 55,0,0
+	boxf 0,30,kguhp/2,40
+	if(kguhp >= 300){
+		color 155,0,0
+		boxf 150,30,kguhp/2,40
+	}
+	if(kguhp >= 500){
+		color 255,0,0
+		boxf 250,30,kguhp/2,40
+	}
+	if(kguhp >= 700){
+		color 255,255,255
+		boxf 350,30,kguhp/2,40
+	}
+	if(kguhp >= 980){
+		color 255,255,255
+		pos 0,680
+		font "MSゴシック" , 20
+		mes "BGM/「Darkness in the Light」 by Ucchii0"
+	}
+	
+	//敵の動き
+	if (kguhp > 0){
+	gorira = gorira + 1
+	if(gorira == 51):gorira = 1
+	if(gorira == 50):gozira = gozira + 1
+	if(gozira == 2):gozira = 0
+		
+	if (gozira == 0){
+		kguy = kguy - 1
+	}
+	else{
+		kguy = kguy + 1
+	}			
+	pos kgux, kguy		; (ex(c),ey(c))座標に位置指定
+	gmode 2
+	gcopy 3,0,0,232,217	; ウィンドウ1から敵の画像部分をコピー
+	}
+
+	
+	if(kguhp >= 700){
+		//弾幕設定「波と粒の境界」
+		if(frame\1 == 0){
+			g = 9
+			t1 = 0.001 + t1
+			if(t1>PI) : t1-=PI*2
+
+			t2 = 0.0 + t1+t2
+			if(t2>PI) : t2-=PI*2
+			repeat g
+				t = PI * 2 * cnt/ g +t2
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 250.0
+					b_y(number) = 150.0
+
+					b_vx(number)= cos(t) * 8.0
+					b_vy(number)= sin(t) * 8.0
+			}
+			loop
+		}
+	}
+
+	if((kguhp == 700) or (kguhp == 500) or (kguhp == 300) or (kguhp == 0)){
+		repeat maxbullet
+			b(cnt) = 0
+			big(cnt) = 0
+		loop
+	}
+
+	if((kguhp <= 700)&(kguhp > 500)){
+		//弾幕設定「乱打」
+		if(frame\1 == 0){
+			gosub *search
+			if(number != -1){
+				//弾の発射
+				b(number) = 1
+				b_x(number) = 250.0
+				b_y(number) = 150.0
+
+				b_vx(number)= -4.5+0.01*rnd(1000)
+				b_vy(number)= 7.5+0.01*rnd(100)
+			}
+		}
+		//弾幕設定 「大玉」
+		if(frame\45 == 0){
+			g = 16
+			t1 = atan ( py-134.0 , px-234.0)
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search2
+				if(number != -1){
+					//弾の発射 
+					big(number) = 1
+					big_x(number) = 250.0
+					big_y(number) = 150.0
+
+					big_vx(number)= cos(t)*9.0
+					big_vy(number)= sin(t)*9.0
+				}
+			loop
+		}
+	}
+	if((kguhp <= 500) & (kguhp >= 300)){
+		//弾幕設定「うどんげ」
+		if(frame\8== 0){
+			g = 75
+			t1 = 0.001*rnd(3142)
+			b_xl = rnd(100)
+			b_yl = rnd(100)
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 200.0 + b_xl
+					b_y(number) = 100.0 + b_yl
+
+					b_vx(number)= cos(t) * 7.0
+					b_vy(number)= sin(t) * 7.0
+			}
+			loop
+	}
+}
+	if(kguhp <= 300 & kguhp > 0){
+		//弾幕設定「ミシャグジさま」
+		if(frame\20 == 0){
+			g = 150
+			t1 = 0.001*rnd(3142)
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 250.0
+					b_y(number) = 150.0
+	
+					b_vx(number)= cos(t) * 7.0
+					b_vy(number)= sin(t) * 7.0
+
+					b_type(number) = cnt \ 2 +1
+					b_ang(number) = t
+					b_time(number) = 0
+				}
+			loop
+		}
+
+		//弾幕設定 「大玉２」
+		if(frame\60 == 0){
+			g = 24
+			p1 = atan ( py-134.0 , px-234.0)
+			repeat g
+				p = PI * 2 * cnt/ g +p1
+				gosub *search2
+				if(number != -1){
+					//弾の発射 
+					big(number) = 1
+					big_x(number) = 250.0
+					big_y(number) = 150.0
+
+					big_vx(number)= cos(p)*1.5
+					big_vy(number)= sin(p)*1.5
+				}
+			loop
+		}
+}
+	repeat maxbullet
+		if( b(cnt) == 1 ){
+			if(abs((px+8) - b_x(cnt))<6) & (abs((py+8) - b_y(cnt))<6) {
+				mmplay 4
+				b(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos b_x(cnt),b_y(cnt)
+			gmode 2
+			gcopy 1, 80, 0, 16, 16 ;弾幕の描画
+
+			b_x(cnt) = b_x(cnt) + b_vx(cnt)
+			b_y(cnt) = b_y(cnt) + b_vy(cnt);移動の処理
+
+			//交差弾の処理
+			if(b_type(cnt)==1){
+				if(b_time(cnt)==40){
+					b_ang(cnt)+=PI/2
+					b_vx(cnt) = cos(b_ang(cnt)) * 3.5
+					b_vy(cnt) = sin(b_ang(cnt)) * 3.5
+				}
+				}
+			if(b_type(cnt)==2){
+					if(b_time(cnt)==40){
+						b_ang(cnt)-=PI/2
+						b_vx(cnt) = cos(b_ang(cnt)) * 3.5
+						b_vy(cnt) = sin(b_ang(cnt)) * 3.5
+					}
+			}
+
+			if( b_x(cnt)<-16 || b_y(cnt)<-16 || b_x(cnt)>500 || b_y(cnt)> 700 ) : b(cnt) =0
+	b_time(cnt)++
+			
+	}
+			if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+		loop
+
+	repeat maxbullet///////////////////大玉
+		if( big(cnt) == 1 ){
+			if(abs((px+8) - (big_x(cnt) - 10))<20) & (abs((py+8) - (big_y(cnt) - 5))<20) {
+				mmplay 4
+				big(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos big_x(cnt) - 50,big_y(cnt) - 50
+			color 0,0,0
+			gmode 4,100,100,200
+			gcopy 5, 0, 0, 100, 100 ;弾幕の描画
+
+			big_x(cnt) = big_x(cnt) + big_vx(cnt)
+			big_y(cnt) = big_y(cnt) + big_vy(cnt);移動の処理
+
+			if( big_x(cnt)<-50 || big_y(cnt)<-50 || big_x(cnt)>550 || big_y(cnt)> 750 ) : big(cnt) =0
+
+		}
+
+		if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+		loop
+
+} ; Bflag == 1 終了////////////////////////////////////////////////////
+	if(stg == 4){
+	color 0,0,0
+	if (kgunrm>ecn)&(kguemx>ecn) {				; ノルマ数以下ならボスを発生
+			c = rnd(emx)
+			if kguhp < 1 :gosub *enmset2		;
+		}
+
+	color 255,255,255
+	pos 0,0
+	font "HGP明朝B", 25
+	mes "T.K.D. 残HP"
+	color 55,0,0
+	boxf 0,30,kguhp/2,40
+	if(kguhp >= 300){
+		color 155,0,0
+		boxf 150,30,kguhp/2,40
+	}
+	if(kguhp >= 500){
+		color 255,0,0
+		boxf 250,30,kguhp/2,40
+	}
+	if(kguhp >= 700){
+		color 255,255,255
+		boxf 350,30,kguhp/2,40
+	}
+	if(kguhp >= 980){
+		color 255,255,255
+		pos 0,680
+		font "MSゴシック" , 20
+		mes "BGM/「Escape」 by Ucchii0"
+	}
+
+	if (kguhp > 0){
+	//敵の動き
+	gorira = gorira + 1
+	if(gorira == 51):gorira = 1
+	if(gorira == 50):gozira = gozira + 1
+	if(gozira == 2):gozira = 0
+		
+	if (gozira == 0){
+		kguy = kguy - 1
+	}
+	else{
+		kguy = kguy + 1
+	}			
+	pos kgux + 50, kguy		; (ex(c),ey(c))座標に位置指定
+	gmode 2
+	gcopy 10,0,0,130,150	; ウィンドウ1から敵の画像部分をコピー
+	}
+
+	
+	if(kguhp >= 700){
+		//弾幕設定「線形計画法」
+	if(frame\2 == 0){
+		if(frame\50 == 0){
+			t1 = atan ( py-150.0 , px-1.0)
+			p1 = atan ( py-699.0 , px-350.0)
+		}
+			t = PI * 2 * cnt +t1
+			p = PI * 2 * cnt +p1
+			gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 1.0
+					b_y(number) = 150.0
+
+					b_vx(number)= cos(t)*10.0
+					b_vy(number)= sin(t)*10.0
+				}
+			gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 350.0
+					b_y(number) = 699.0
+
+					b_vx(number)= cos(p)*10.0
+					b_vy(number)= sin(p)*10.0
+				}
+			}
+	}
+
+	if((kguhp == 700) or (kguhp == 500) or (kguhp == 300) or (kguhp == 0)){
+		repeat maxbullet
+			b(cnt) = 0
+			big(cnt) = 0
+		loop
+	}
+
+	if((kguhp <= 700)&(kguhp > 500)){
+
+		//弾幕設定 「散布図」
+		if(frame\50 == 0){
+			g = 75
+			repeat g
+				gosub *search
+				if(number != -1){
+					//弾の発射 
+					b(number) = 1
+					b_x(number) = rnd(500)
+					b_y(number) = rnd(700)
+
+					b_vx(number)= 0.0
+					b_vy(number)= 0.0
+
+					b_type(number) = cnt \ 2 +1
+					b_ang(number) = t
+					b_time(number) = 0
+				}
+			loop
+		}
+	}
+	if((kguhp <= 500) & (kguhp >= 300)){
+	//弾幕設定「フラン」
+		if(frame\2 == 0){
+			g = 15
+			if(frame\50){
+				t1 = atan ( py-240.0 , px-243.0)
+			}
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 253.0
+					b_y(number) = 250.0
+
+					b_vx(number)= cos(t)*8.0
+					b_vy(number)= sin(t)*8.0
+				}
+			loop
+		}
+}
+	if(kguhp <= 300 & kguhp > 0){
+		//弾幕設定「」
+		if(frame\10== 0){
+			g = 80
+			t1 = 0.001*rnd(3142)
+			repeat g
+				t = PI * 2 * cnt/ g +t1
+				gosub *search
+				if(number != -1){
+					//弾の発射
+					b(number) = 1
+					b_x(number) = 250.0
+					b_y(number) = 150.0
+
+					b_vx(number)= cos(t) * 8.0
+					b_vy(number)= sin(t) * 8.0
+
+					b_type(number) = cnt \ 2 +1
+					b_ang(number) = t
+					if kguhp > 250 : b_time(number) = 0
+					if (kguhp <= 250 & kguhp > 150) : b_time(number) = 2
+					if (kguhp <= 150 & kguhp > 100) : b_time(number) = 4
+					if (kguhp <= 100 & kguhp > 50) : b_time(number) = 6
+					if kguhp < 50 : b_time(number) = 8
+					
+			}
+			loop
+	}
+}
+	repeat maxbullet
+		if( b(cnt) == 1 ){
+			if(abs((px+8) - b_x(cnt))<6) & (abs((py+8) - b_y(cnt))<6) {
+				mmplay 4
+				b(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos b_x(cnt),b_y(cnt)
+			gmode 2
+			gcopy 1, 80, 0, 16, 16 ;弾幕の描画
+
+			b_x(cnt) = b_x(cnt) + b_vx(cnt)
+			b_y(cnt) = b_y(cnt) + b_vy(cnt);移動の処理
+
+		if((kguhp <= 700)&(kguhp > 500)){
+			//交差弾の処理
+			if(b_type(cnt)==1){
+				if(b_time(cnt)==40){
+					b_ang(cnt)+=PI/2
+					b_vx(cnt) = cos(b_ang(cnt)) * 3.5
+					b_vy(cnt) = sin(b_ang(cnt)) * 3.5
+				}
+			}
+			if(b_type(cnt)==2){
+					if(b_time(cnt)==40){
+						b_ang(cnt)-=PI/2
+						b_vx(cnt) = cos(b_ang(cnt)) * 3.5
+						b_vy(cnt) = sin(b_ang(cnt)) * 3.5
+					}
+			}
+		}
+		if(kguhp <= 300){
+			//交差弾の処理
+			if(b_type(cnt)==2){
+					if(b_time(cnt)==30){
+						b_ang(cnt)=PI/2
+						b_vx(cnt) = cos(b_ang(cnt)) * 3.5
+						b_vy(cnt) = sin(b_ang(cnt)) * 3.5
+					}
+			}
+		}
+
+			if( b_x(cnt)<-16 || b_y(cnt)<-16 || b_x(cnt)>500 || b_y(cnt)> 700 ) : b(cnt) =0
+	b_time(cnt)++
+			
+	}
+			if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+		loop
+
+	repeat maxbullet///////////////////大玉
+		if( big(cnt) == 1 ){
+			if(abs((px+8) - (big_x(cnt) - 10))<20) & (abs((py+8) - (big_y(cnt) - 5))<20) {
+				mmplay 4
+				big(cnt) = 0
+				hp-
+				gosub *bom_p ;当たり判定
+				}
+			pos big_x(cnt) - 50,big_y(cnt) - 50
+			color 0,0,0
+			gmode 4,100,100,200
+			gcopy 5, 0, 0, 100, 100 ;弾幕の描画
+
+			big_x(cnt) = big_x(cnt) + big_vx(cnt)
+			big_y(cnt) = big_y(cnt) + big_vy(cnt);移動の処理
+
+			if( big_x(cnt)<-50 || big_y(cnt)<-50 || big_x(cnt)>550 || big_y(cnt)> 750 ) : big(cnt) =0
+
+		}
+
+		if bmc > 0 { 
+			bmc- 
+			pos bmx, bmy		; 爆発アニメ表示
+			gcopy 1, 32*(2-bmc), 32, 32, 32
+		}
+		loop
+
+	}////////////////////////////////////////////////////////////////////////////////////
+
+	if sp = 0 : color 64,128,0
+	if sp = 1 : color 155,0,0
+	boxf 500,0,700,700
+	color 255, 255, 255
+	font "MS Gothic", 32
+	pos 500, 10					; スコア表示
+	mes "KILL "+strf("%05d", sc)
+	if Bflag == 0 {
+		pos wxs-200, 45				; 敵撃墜ノルマ表示
+		mes "単位 "+tne
+	}
+	if(stg == 3){
+		color 255,255,255
+		pos 500,45
+		mes "vs K.G.U."
+	}
+	if(stg == 4){
+		color 255,255,255
+		pos 500,45
+		mes "vs塚田先生"
+	}
+	pos 500, wys-620				; 自機の耐久力表示
+	mes "HP "
+	pos 535,80
+	gmode 2
+	gcopy 6,0,0,hp*32,32
+	
+
+	pos 500,115
+	if stg < 4 {
+		mes "STAGE  " + stg
+	}
+	else {
+		mes "EXTRA  STAGE"
+	}
+	
+	font "Malgun Gothic", 50
+	pos 500,380
+	mes{"High.
+	Speed.
+	Punisher
+	ヨ -χ-"}
+
+	if dead > 0 {
+		if (dead == 100 or dead == 75):mmplay 5
+		if stg = 3 : mad = 11
+		if stg = 4 {
+			mad = 12
+			if (dead = 100){
+				kgux + 50
+			}
+		}
+		dead-
+		pos kgux,kguy
+		if dead > 75{
+			gmode 2,500,500,
+			gcopy mad
+		}
+		if (dead = 60 or dead = 50 or dead = 40 or dead = 35 or dead =30 or dead = 28 or dead = 25){
+			kguy = kguy + 2
+			gmode 2,500,500
+			gcopy mad
+			mmplay 5
+		}
+	}
+	
+	redraw 1			; 画面操作の結果を反映(画面の更新)
+	wait 5				; 0.05秒待つ
+
+	if stg == 1 {
+		foreach ehp :c = cnt
+			if (ehp(c)>0)&(abs(px-ex(c))<24)&(abs(py-ey(c))<24) {	; 自機と敵の当たり判定
+				hp -		; 自機のやられ
+				ehp(c) = 0			; 敵のやられ
+				gosub *bom_e		; 爆発をセット
+			}
+		loop
+	}
+	else {
+		//当たり判定
+
+	}
+	
+frame = frame + 1
+
+	if (stg = 1 & sc >= 100 & tne < 0 & bmc=0){
+		stg = 3
+		TFlag = 1
+		goto *start
+	}
+
+	if (frame == 1) : gosub *talk
+
+	if (hp>0)&(ecn>0) :goto *main		; 自機と敵が健在なら *main にジャンプ
+
+	if bmc>0 :goto *main			; 爆発中なら *main にジャンプ
+
+; ゲームオーバー処理
+;
+	redraw 1
+	if hp < 1 {
+		mmstop
+		die +
+		DP = stg - 1
+		font "" , 50
+		pos 130, 300
+		color 255, 0, 0
+		mes "GAME OVER"
+		await 20
+		pos 160,340
+		mes "continue?"
+		gosub *pse
+		goto *howto
+	}
+	if (stg == 3 & kguhp == 0 & dead == 0) {
+	mmstop
+	clear = 1
+	pos 120, 300		
+	color 255, 0, 0
+	mes "GAME CLEAR?"
+	gosub *pse
+	color 0,0,0
+	boxf
+	gosub *talk
+	await 20
+	stop
+	}
+	if (stg == 4 & kguhp == 0 & dead == 0) {
+	mmstop
+	clear = 2
+	pos 50, 300		
+	color 255, 0, 0
+	mes "GAME COMPLETE"
+	gosub *pse
+	color 0,0,0
+	boxf
+	gosub *talk
+	await 20
+	stop
+	}
+	if stg <= 2 {
+		goto *start
+	}
+	else {
+		goto *main
+	}
+; --- サブルーチン ---
+
+; 敵の初期座標・移動方向をセット
+;
+*enmset
+	ehp(c) = 3
+	ecn+				; 敵の発生
+*enmpoi
+	ex(c) = rnd(wxs-232)
+	ey(c) =- 24		; 初期座標
+*enmvec
+	dx(c) = (rnd(5)-2)*esp
+	dy(c) = rnd(3)*esp	; 移動方向
+	return
+
+*enmset2
+	ecn+				; 敵の発生
+	return
+
+; 自機弾と敵の当たり判定
+;
+*hitchk
+	foreach ehp
+		if (ehp(cnt)>0)&(abs(ex(cnt)-tx(c))<24)&(abs(ey(cnt)-ty(c))<32) {
+			mmplay 1
+			tf(c) = 0
+			ehp(cnt)-
+			if ehp(cnt) < 1 :gosub *bom_e	; 耐久値<1なら敵1機撃墜
+		} else {
+			pos tx(c),ty(c)		; 自機弾の表示
+			gcopy 1,64,0,16,16	;
+		}
+	loop
+	return
+
+*hitchk2
+	foreach kguhp
+		if (kguhp(cnt)>0)&(abs((kgux(cnt)+106)-tx(c))<500)&(abs((kguy(cnt)+107)-ty(c))<13) {
+			mmplay 1
+			tf(c) = 0
+			kguhp -
+			if kguhp < 1 : kguhp == 1000
+		} else {
+			pos tx(c),ty(c)		; 自機弾の表示
+			gcopy 1,64,0,16,16	;
+		}
+	loop
+	return
+
+
+*hitchk3
+	foreach kguhp
+		if (kguhp(cnt)>0)&(abs((kgux(cnt)+106)-tx(c))<53)&(abs((kguy(cnt)+107)-ty(c))<43) {
+			mmplay 1
+			tf(c) = 0
+			kguhp -
+			if kguhp < 1 {
+				ecn = 0
+				dead = 100
+			}
+		} else {
+			pos tx(c),ty(c)		; 自機弾の表示
+			gcopy 1,64,0,16,16	;
+		}
+	loop
+	return
+
+*tnechk
+		if (abs((px+8) - (tnex(cnt) + 25))<35) & (abs((py+8) - (tney(cnt) + 25))<35) {
+			tnef(c) = 0
+			tne +2
+			mmplay 6
+			if tne >= tnenrm : ecn = 0
+		} else {
+			pos tnex(c),tney(c)		; 単位の表示
+			gmode 2
+			gcopy 8,0,0,50,50
+		}
+	return
+; 爆発アニメのセット
+;
+*bom_e
+	bmc = 3
+	bmx = ex(cnt)
+	bmy = ey(cnt)
+	ecn-
+	nrm-
+	sc+
+	mmplay 2
+*bom_p
+	if hp < 1 {
+		bmc = 3
+		bmx = px
+		bmy = py
+		mmplay 2
+	}
+	return
+
+; キー入力待ち
+;
+*how
+	wait 1
+	stick ky
+	if ky = 32 :return ; 32はリターンキー
+	goto *how
+
+*pse
+	wait 1
+	stick ky
+	if ky = 32 :return ; 32はリターンキー
+	goto *pse
+
+*pause
+	redraw 1
+	pos 150,270
+	color 255,0,0
+	font "", 75
+	mes "PAUSE"
+	wait 1
+	stick ky
+	if ky = 32 :return 
+	goto *pause
+/////////////////////////////////
+*search
+	number = -1
+	repeat maxbullet
+		if( b(cnt) != 1 ) : number = cnt : break
+	loop
+
+	return
+
+*search2
+	number = -1
+	repeat maxbullet
+		if( big(cnt) != 1 ) : number = cnt : break
+	loop
+
+	return
+
+*talk
+	
+	pos wxs-341,wys-480
+	gmode 2
+	gcopy 9,0,0,341,480
+	
+	color 255,255,255
+	boxf 10,495,490,690
+	color 0,0,0
+	boxf 15,500,485,685
+	
+	color 255,255,255
+	font "" , 25
+	pos 20,505
+	if stg = 1 & die = 0 & clear = 0: mes "＊単位が足りないので奪いに来ました。"
+	if stg = 2 & die = 0 & clear = 0: mes "＊お前も単位をくれるのか？"
+	if stg = 3 & die = 0 & clear = 0: mes "＊一発で来れたからこのままぶちのめす。"
+	if stg = 1 & die = 1 & clear = 0: mes "＊単位が無い。ぶち飛ばそう。"
+	if stg = 2 & die = 1 & clear = 0: mes "＊よおオ〇ガフ〇ウィー。"
+	if stg = 3 & die = 1 & clear = 0: mes "＊出たな葉っぱの人。"
+	if stg = 1 & die = 2 & clear = 0: mes "＊単位単位単位単位単位単位単位単位単位"
+	if stg = 2 & die = 2 & clear = 0: mes "＊デザインが気に入らない。"
+	if stg = 3 & die = 2 & clear = 0: mes "＊三度目の正直か二度あることは三度あるか。"
+	if stg = 1 & die = 3 & clear = 0: mes "＊三度あった。"
+	if stg = 2 & die = 3 & clear = 0: mes "＊６発撃ち込むとずっと単位吐き続けるよ。"
+	if stg = 3 & die = 3 & clear = 0: mes "＊これ読んでるの相当頑張ってると思うよ。"
+	if stg = 1 & die = 4 & clear = 0: mes "＊正直もうエンターキー連打されてると思う。"
+	if stg = 2 & die = 4 & clear = 0: mes "＊この回でセリフは弾切れ。"
+	if stg = 3 & die = 4 & clear = 0: mes "＊勝て。"
+	if stg = 4 & clear = 0: mes "＊おはようございます。単位下さい。"
+	if die >= 5 & clear = 0 : mes "次。"
+
+	if clear = 1 & sp = 0 : mes {"＊単位なんて捨てて
+	殺し尽くして
+	見てはいかが？"}
+	if clear = 1 & sp = 1 : mes {"＊気でも狂ったか？
+	次もクリア出来るものなら、
+	是非やってみてくれ。"}
+	if clear = 2 & sp = 0 : mes "お疲れ様。"
+	if clear = 2 & sp = 1 : mes {"＊完全な運ゲーがあったが、
+	よく回避したみたいだな？
+	おめでとう。"}
+	gosub *pse
+	
+	return 
